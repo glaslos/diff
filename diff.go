@@ -14,6 +14,10 @@ type Edit struct {
 	New        string // the replacement
 }
 
+func (e Edit) String() string {
+	return fmt.Sprintf("{Start:%d,End:%d,New:%q}", e.Start, e.End, e.New)
+}
+
 // Apply applies a sequence of edits to the src buffer and returns the
 // result. Edits are applied in order of start offset; edits with the
 // same start offset are applied in they order they were provided.
