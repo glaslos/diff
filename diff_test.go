@@ -300,3 +300,14 @@ func TestNEdits(t *testing.T) {
 		}
 	}
 }
+
+func TestUnifiedFunc(t *testing.T) {
+	edits := diff.Strings("a\nb\nc\n", "a\nd\nc\n")
+	unified, err := diff.UnifiedFn("a", "b", "c", edits, 1, func(s string) string { return "" })
+	if err != nil {
+		t.Fatalf("Unified failed: %v", err)
+	}
+	if unified != "@@ -1,3 +1,3 @@\n a\n-b\n+d\n c\n" {
+		t.Fatalf("got %q", unified)
+	}
+}
