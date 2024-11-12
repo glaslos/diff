@@ -1,6 +1,7 @@
 package diff_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/glaslos/diff"
@@ -302,8 +303,21 @@ func TestNEdits(t *testing.T) {
 }
 
 func TestUnifiedFunc(t *testing.T) {
-	edits := diff.Strings("a\nb\nc\n", "a\nd\nc\n")
-	unified, err := diff.UnifiedFn("a", "b", "c", edits, 1, func(s string) string { return "" })
+	var (
+		before = "a\nb\nc\n"
+		after  = "a\nd\nc\n"
+	)
+
+	edits := diff.Strings(before, after)
+
+	f := func(s string, delete bool) string {
+		if delete {
+			return fmt.Sprintf(`<span style="background-color=red">%s</span>`, s)
+		}
+		return fmt.Sprintf(`<span style="background-color=green">%s</span>`, s)
+	}
+
+	unified, err := diff.UnifiedFn(before, edits, 1, f)
 	if err != nil {
 		t.Fatalf("Unified failed: %v", err)
 	}

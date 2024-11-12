@@ -17,8 +17,8 @@ func Unified(oldLabel, newLabel, content string, edits []Edit, contextLines int)
 	return u.String(), nil
 }
 
-func UnifiedFn(oldLabel, newLabel, content string, edits []Edit, contextLines int, f func(string) string) (string, error) {
-	u, err := toUnified(oldLabel, newLabel, content, edits, contextLines)
+func UnifiedFn(content string, edits []Edit, contextLines int, f func(string, bool) string) (string, error) {
+	u, err := toUnified("", "", content, edits, contextLines)
 	if err != nil {
 		return "", err
 	}
@@ -293,7 +293,7 @@ func (u unified) String() string {
 
 // String converts a unified diff to the standard textual form for that diff.
 // The output of this function can be passed to tools like patch.
-func (u unified) StringFn(f func(string) string) string {
+func (u unified) StringFn(f func(content string, delete bool) string) string {
 	if len(u.hunks) == 0 {
 		return ""
 	}
@@ -302,11 +302,11 @@ func (u unified) StringFn(f func(string) string) string {
 		for _, l := range hunk.lines {
 			switch l.kind {
 			case opDelete:
-				fmt.Fprintf(b, "-%s", l.content)
+				fmt.Fprintf(b, "%s", f(l.content, true))
 			case opInsert:
-				fmt.Fprintf(b, "+%s", l.content)
+				fmt.Fprintf(b, "%s", f(l.content, false))
 			default:
-				fmt.Fprintf(b, " %s", l.content)
+				fmt.Fprintf(b, "%s", l.content)
 			}
 			if !strings.HasSuffix(l.content, "\n") {
 				fmt.Fprintf(b, "\n\\ No newline at end of file\n")
