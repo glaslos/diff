@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/glaslos/diff"
+
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -303,25 +305,30 @@ func TestNEdits(t *testing.T) {
 }
 
 func TestUnifiedFunc(t *testing.T) {
-	var (
-		before = "a\nb\nc\n"
-		after  = "a\nd\nc\n"
-	)
+	tests := []struct {
+		before, after, expect string
+	}{
+		//{"a\nb\nc\n", "a\nd\nc\n"},
+		{
+			`a\nb\nb\nb\nb\nc\n`,
+			`a\nb\nb\nb\nb\nd\n`,
+			`a\nb\nb\nb\nb\n<span style="background-color=red">c</span><span style="background-color=green">d</span>\n`,
+		},
+	}
 
-	edits := diff.Strings(before, after)
-
-	f := func(s string, delete bool) string {
-		if delete {
-			return fmt.Sprintf(`<span style="background-color=red">%s</span>`, s)
+	for _, test := range tests {
+		edits := diff.Strings(test.before, test.after)
+		f := func(s string, delete bool) string {
+			if delete {
+				return fmt.Sprintf(`<span style="background-color=red">%s</span>`, s)
+			}
+			return fmt.Sprintf(`<span style="background-color=green">%s</span>`, s)
 		}
-		return fmt.Sprintf(`<span style="background-color=green">%s</span>`, s)
-	}
 
-	unified, err := diff.UnifiedFn(before, edits, 1, f)
-	if err != nil {
-		t.Fatalf("Unified failed: %v", err)
-	}
-	if unified != "@@ -1,3 +1,3 @@\n a\n-b\n+d\n c\n" {
-		t.Fatalf("got %q", unified)
+		unified, err := diff.UnifiedFn(test.before, edits, 1, f)
+		if err != nil {
+			t.Fatalf("Unified failed: %v", err)
+		}
+		require.Equal(t, test.expect, unified)
 	}
 }

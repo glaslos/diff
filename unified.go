@@ -80,11 +80,11 @@ func toUnified(fromName, toName string, content string, edits []Edit, contextLin
 	if len(edits) == 0 {
 		return u, nil
 	}
-	var err error
-	edits, err = lineEdits(content, edits) // expand to whole lines
-	if err != nil {
-		return u, err
-	}
+	// var err error
+	// edits, err = lineEdits(content, edits) // expand to whole lines
+	// if err != nil {
+	// 	return u, err
+	// }
 	lines := splitLines(content)
 	var h *hunk
 	last := 0
