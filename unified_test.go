@@ -50,9 +50,9 @@ func TestUnifiedFunc(t *testing.T) {
 		before, after, expect string
 	}{
 		{
-			`The red fox jumped over the red fence`,
-			`The red fox jumped over the green fence`,
-			`The red fox jumped over the <span style="background-color=red">g</span>re<span style="background-color=green">en</span> fence`,
+			`The red fox jumped over the red palace garden fence`,
+			`The red fox jumped over the green palace garden fence`,
+			`The red fox jumped over the <span style="background-color=red">red</span><span style="background-color=green">green</span> palace garden fence`,
 		},
 	}
 

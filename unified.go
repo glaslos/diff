@@ -1,7 +1,6 @@
 package diff
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -29,46 +28,38 @@ const (
 
 // unified represents a set of edits as a unified diff.
 type unified struct {
-	// hunks is the set of edit hunks needed to transform the file content.
-	hunks []*hunk
+	words []word
 }
 
-// Hunk represents a contiguous set of line edits to apply.
-type hunk struct {
-	// The line in the original source where the hunk starts.
-	fromLine int
-	// The line in the original source where the hunk finishes.
-	toLine int
-	// The set of line based edits to apply.
-	lines []line
-}
-
-// Line represents a single line operation to apply as part of a Hunk.
-type line struct {
-	// kind is the type of line this represents, deletion, insertion or copy.
+// word represents a single word operation to apply as part of a Hunk.
+type word struct {
+	// kind is the type of word this represents, deletion, insertion or copy.
 	kind opKind
-	// content is the content of this line.
-	// For deletion it is the line being removed, for all others it is the line
+	// content is the content of this word.
+	// For deletion it is the word being removed, for all others it is the word
 	// to put in the output.
 	content string
 }
 
 // toUnified takes a file contents and a sequence of edits, and calculates
 // a unified diff that represents those edits.
-func toUnified(content string, edits []Edit) (unified, error) {
-	u := unified{}
+func toUnified(content string, edits []Edit) (*unified, error) {
 	if len(edits) == 0 {
-		return u, nil
+		return nil, nil
 	}
 	var err error
 	edits, err = wordEdits(content, edits) // expand to whole words
 	if err != nil {
-		return u, err
+		return nil, err
 	}
 	words := splitWords(content)
-	var h *hunk
-	last := 0
-	toLine := 0
+
+	u := &unified{
+		words: make([]word, 0, len(words)),
+	}
+
+	previous := 0
+	toWord := 0
 	for _, edit := range edits {
 		// Compute the zero-based line numbers of the edit start and end.
 		// TODO(adonovan): opt: compute incrementally, avoid O(n^2).
@@ -78,45 +69,46 @@ func toUnified(content string, edits []Edit) (unified, error) {
 			end++ // EOF counts as an implicit newline
 		}
 
+		// add all leading words
+		if previous == 0 {
+			addEqualWords(u, words, previous, start)
+		}
+
 		switch {
-		case h != nil && start == last:
+		case previous != 0 && start == previous:
 			//direct extension
-		case h != nil && start <= last+2:
+		case previous != 0 && start <= previous+2:
 			//within range of previous lines, add the joiners
-			addEqualLines(h, words, last, start)
+			addEqualWords(u, words, previous, start)
 		default:
 			//need to start a new hunk
-			if h != nil {
+			if previous != 0 {
 				// add the edge to the previous hunk
-				addEqualLines(h, words, last, last+2)
-				u.hunks = append(u.hunks, h)
+				addEqualWords(u, words, previous, previous+2)
+				//u.hunks = append(u.hunks, h)
 			}
-			toLine += start - last
-			h = &hunk{
-				fromLine: start + 1,
-				toLine:   toLine + 1,
-			}
+			toWord += start - previous
 			// add the edge to the new hunk
-			delta := addEqualLines(h, words, start-2, start)
-			h.fromLine -= delta
-			h.toLine -= delta
+			//delta := addEqualLines(u, words, start-2, start)
+			//h.fromWord -= delta
+			//h.toWord -= delta
 		}
-		last = start
+		previous = start
 		for i := start; i < end; i++ {
-			h.lines = append(h.lines, line{kind: opDelete, content: words[i]})
-			last++
+			u.words = append(u.words, word{kind: opDelete, content: words[i]})
+			previous++
 		}
 		if edit.New != "" {
 			for _, content := range splitWords(edit.New) {
-				h.lines = append(h.lines, line{kind: opInsert, content: content})
-				toLine++
+				u.words = append(u.words, word{kind: opInsert, content: content})
+				toWord++
 			}
 		}
 	}
-	if h != nil {
+	if previous != 0 {
 		// add the edge to the final hunk
-		addEqualLines(h, words, last, last+2)
-		u.hunks = append(u.hunks, h)
+		addEqualWords(u, words, previous, len(words))
+		//u.words = append(u.words, h)
 	}
 	return u, nil
 }
@@ -129,16 +121,16 @@ func splitWords(text string) []string {
 	return words
 }
 
-func addEqualLines(h *hunk, lines []string, start, end int) int {
+func addEqualWords(u *unified, words []string, start, end int) int {
 	delta := 0
 	for i := start; i < end; i++ {
 		if i < 0 {
 			continue
 		}
-		if i >= len(lines) {
+		if i >= len(words) {
 			return delta
 		}
-		h.lines = append(h.lines, line{kind: opEqual, content: lines[i]})
+		u.words = append(u.words, word{kind: opEqual, content: words[i]})
 		delta++
 	}
 	return delta
@@ -153,8 +145,7 @@ func wordEdits(src string, edits []Edit) ([]Edit, error) {
 		return nil, err
 	}
 
-	// Do all deletions begin and end at the start of a word,
-	// and all insertions end with a newline?
+	// Do all deletions begin and end at the start of a word
 	// (This is merely a fast path.)
 	for _, edit := range edits {
 		if edit.Start >= len(src) || // insertion at EOF
@@ -177,11 +168,11 @@ expand:
 	for _, edit := range edits[1:] {
 		between := src[prev.End:edit.Start]
 		if !strings.Contains(between, " ") {
-			// overlapping lines: combine with previous edit.
+			// overlapping words: combine with previous edit.
 			prev.New += between + edit.New
 			prev.End = edit.End
 		} else {
-			// non-overlapping lines: flush previous edit.
+			// non-overlapping words: flush previous edit.
 			expanded = append(expanded, expandEdit(prev, src))
 			prev = edit
 		}
@@ -189,7 +180,7 @@ expand:
 	return append(expanded, expandEdit(prev, src)), nil // flush final edit
 }
 
-// expandEdit returns edit expanded to complete whole lines.
+// expandEdit returns edit expanded to complete whole words.
 func expandEdit(edit Edit, src string) Edit {
 	// Expand start left to start of line.
 	// (delta is the zero-based column number of start.)
@@ -201,7 +192,7 @@ func expandEdit(edit Edit, src string) Edit {
 
 	// Expand end right to end of line.
 	end := edit.End
-	if end > 0 && src[end-1] != '\n' ||
+	if end > 0 && src[end-1] != ' ' ||
 		edit.New != "" && edit.New[len(edit.New)-1] != ' ' {
 		if nl := strings.IndexByte(src[end:], ' '); nl < 0 {
 			edit.End = len(src) // extend to EOF
@@ -217,21 +208,20 @@ func expandEdit(edit Edit, src string) Edit {
 // String converts a unified diff to the standard textual form for that diff.
 // The output of this function can be passed to tools like patch.
 func (u unified) String(f func(content string, delete bool) string) string {
-	if len(u.hunks) == 0 {
+	if len(u.words) == 0 {
 		return ""
 	}
-	b := new(strings.Builder)
-	for _, hunk := range u.hunks {
-		for _, l := range hunk.lines {
-			switch l.kind {
-			case opDelete:
-				fmt.Fprintf(b, "%s", f(l.content, true))
-			case opInsert:
-				fmt.Fprintf(b, "%s", f(l.content, false))
-			default:
-				fmt.Fprintf(b, "%s", l.content)
-			}
+
+	s := make([]string, 0, len(u.words)+1)
+	for i, l := range u.words {
+		switch l.kind {
+		case opDelete:
+			s[i] = f(l.content, true)
+		case opInsert:
+			s[i] = f(l.content, false)
+		default:
+			s[i] = l.content
 		}
 	}
-	return b.String()
+	return strings.Join(s, " ")
 }
