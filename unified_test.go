@@ -66,6 +66,14 @@ func TestUnifiedFunc(t *testing.T) {
 			`The blue fox fell`,
 			`The ` + f("red", true) + f("blue", false) + ` fox ` + f("jumped", true) + f("fell", false),
 		},
+		{
+			`The red fox jumped 
+			over the red palace garden fence`,
+			`The red fox fell 
+			over the red palace garden fence`,
+			`The red fox ` + f("jumped", true) + f("fell", false) + `
+			over the red palace garden fence`,
+		},
 	}
 
 	for _, test := range tests {
