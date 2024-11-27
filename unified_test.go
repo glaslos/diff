@@ -45,6 +45,13 @@ func TestSplitWords(t *testing.T) {
 	}
 }
 
+var f = func(s string, delete bool) string {
+	if delete {
+		return fmt.Sprintf(`<span style="background-color=red">%s</span>`, s)
+	}
+	return fmt.Sprintf(`<span style="background-color=green">%s</span>`, s)
+}
+
 func TestUnifiedFunc(t *testing.T) {
 	tests := []struct {
 		before, after, expect string
@@ -52,19 +59,18 @@ func TestUnifiedFunc(t *testing.T) {
 		{
 			`The red fox jumped over the red palace garden fence`,
 			`The red fox jumped over the green palace garden fence`,
-			`The red fox jumped over the <span style="background-color=red">red</span><span style="background-color=green">green</span> palace garden fence`,
+			`The red fox jumped over the ` + f("red", true) + f("green", false) + ` palace garden fence`,
+		},
+		{
+			`The red fox jumped`,
+			`The blue fox fell`,
+			`The ` + f("red", true) + f("blue", false) + ` fox ` + f("jumped", true) + f("fell", false),
 		},
 	}
 
 	for _, test := range tests {
 		edits := Strings(test.before, test.after)
 		t.Log(edits)
-		f := func(s string, delete bool) string {
-			if delete {
-				return fmt.Sprintf(`<span style="background-color=red">%s</span>`, s)
-			}
-			return fmt.Sprintf(`<span style="background-color=green">%s</span>`, s)
-		}
 
 		unified, err := Unified(test.before, edits, f)
 		if err != nil {

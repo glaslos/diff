@@ -212,16 +212,22 @@ func (u unified) String(f func(content string, delete bool) string) string {
 		return ""
 	}
 
-	s := make([]string, 0, len(u.words)+1)
+	s := make([]string, 0, len(u.words))
 	for i, l := range u.words {
 		switch l.kind {
 		case opDelete:
-			s[i] = f(l.content, true)
+			s = append(s, f(l.content, true))
 		case opInsert:
-			s[i] = f(l.content, false)
+			s = append(s, f(l.content, false))
+			if i != len(u.words)-1 {
+				s = append(s, " ") // space after all insertions but the last
+			}
 		default:
-			s[i] = l.content
+			s = append(s, l.content)
+			if i != len(u.words)-1 {
+				s = append(s, " ") // space after all but the last word
+			}
 		}
 	}
-	return strings.Join(s, " ")
+	return strings.Join(s, "")
 }
