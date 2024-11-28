@@ -4,12 +4,16 @@ import (
 	"strings"
 )
 
-func Unified(content string, edits []Edit, f func(string, bool) string) (string, error) {
-	u, err := toUnified(content, edits)
+func Unified(
+	content string, edits []Edit,
+	split func(string) []string,
+	format func(string, bool) string,
+) (string, error) {
+	u, err := toUnified(content, edits, split)
 	if err != nil {
 		return "", err
 	}
-	return u.String(f), nil
+	return u.String(format), nil
 }
 
 // opKind is used to denote the type of operation a line represents.
@@ -43,7 +47,10 @@ type word struct {
 
 // toUnified takes a file contents and a sequence of edits, and calculates
 // a unified diff that represents those edits.
-func toUnified(content string, edits []Edit) (*unified, error) {
+func toUnified(
+	content string, edits []Edit,
+	split func(string) []string,
+) (*unified, error) {
 	if len(edits) == 0 {
 		return nil, nil
 	}
@@ -52,7 +59,7 @@ func toUnified(content string, edits []Edit) (*unified, error) {
 	if err != nil {
 		return nil, err
 	}
-	words := splitWords(content)
+	words := split(content)
 
 	u := &unified{
 		words: make([]word, 0, len(words)),
@@ -99,7 +106,7 @@ func toUnified(content string, edits []Edit) (*unified, error) {
 			previous++
 		}
 		if edit.New != "" {
-			for _, content := range splitWords(edit.New) {
+			for _, content := range split(edit.New) {
 				u.words = append(u.words, word{kind: opInsert, content: content})
 				toWord++
 			}
@@ -111,14 +118,6 @@ func toUnified(content string, edits []Edit) (*unified, error) {
 		//u.words = append(u.words, h)
 	}
 	return u, nil
-}
-
-func splitWords(text string) []string {
-	words := strings.Fields(text)
-	if words[len(words)-1] == "" {
-		words = words[:len(words)-1]
-	}
-	return words
 }
 
 func addEqualWords(u *unified, words []string, start, end int) int {
@@ -207,7 +206,7 @@ func expandEdit(edit Edit, src string) Edit {
 
 // String converts a unified diff to the standard textual form for that diff.
 // The output of this function can be passed to tools like patch.
-func (u unified) String(f func(content string, delete bool) string) string {
+func (u unified) String(format func(content string, delete bool) string) string {
 	if len(u.words) == 0 {
 		return ""
 	}
@@ -216,9 +215,9 @@ func (u unified) String(f func(content string, delete bool) string) string {
 	for i, l := range u.words {
 		switch l.kind {
 		case opDelete:
-			s = append(s, f(l.content, true))
+			s = append(s, format(l.content, true))
 		case opInsert:
-			s = append(s, f(l.content, false))
+			s = append(s, format(l.content, false))
 			if i != len(u.words)-1 {
 				s = append(s, " ") // space after all insertions but the last
 			}
